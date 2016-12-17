@@ -1,7 +1,7 @@
 #ifndef SCE_ELF_H
 #define SCE_ELF_H
 
-#include "vita-elf.h"
+#include "velf.h"
 
 /* SCE-specific definitions for e_type: */
 #define ET_SCE_EXEC		0xFE00		/* SCE Executable file */
@@ -102,7 +102,5 @@ int sce_elf_write_rela_sections(
 int sce_elf_rewrite_stubs(Elf *dest, const vita_elf_t *ve);
 
 int sce_elf_set_headers(FILE *outfile, const vita_elf_t *ve);
-
-const uint32_t sce_elf_stub_func[3];
 
 #endif

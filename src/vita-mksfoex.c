@@ -12,8 +12,11 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
-#include "getopt.h"
-#include "types.h"
+#include <getopt.h>
+
+#define SW(x,v) ((*x)=(v))
+#define SH(x,v) ((*x)=(v))
+#define ALIGN32(VAL) ((VAL + 3) & ~3)
 
 #define PSF_MAGIC	0x46535000
 #define PSF_VERSION  0x00000101
@@ -270,7 +273,7 @@ int main(int argc, char **argv)
 	
 	if(!process_args(argc, argv)) 
 	{
-		fprintf(stderr, "usage: mksfoex [options] TITLE output.sfo\n");
+		fprintf(stderr, "Usage: mksfoex [options] TITLE output.sfo\n");
 		fprintf(stderr, "\t-d NAME=VALUE   Add a new DWORD value\n");
 		fprintf(stderr, "\t-s NAME=STR     Add a new string value\n");
 

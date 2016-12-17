@@ -8,14 +8,12 @@
 #include <libelf.h>
 #include <gelf.h>
 
-#include "vita-elf.h"
-#include "vita-import.h"
-#include "vita-export.h"
+#include "velf.h"
+#include "import.h"
+#include "export.h"
 #include "elf-defs.h"
 #include "sce-elf.h"
 #include "elf-utils.h"
-#include "fail-utils.h"
-#include "elf-create-argp.h"
 
 // logging level
 int g_log = 0;
@@ -123,7 +121,7 @@ void list_segments(vita_elf_t *ve)
 
 static int usage(int argc, char *argv[])
 {
-	fprintf(stderr, "usage: %s [-v|vv|vvv] [-n] [-e config.yml] input.elf output.velf\n"
+	fprintf(stderr, "Usage: %s [-v|vv|vvv] [-n] [-e config.yml] input.elf output.velf\n"
 					"\t-v,-vv,-vvv:    logging verbosity (more v is more verbose)\n"
 					"\t-n         :    allow empty imports\n"
 					"\t-e yml     :    optional config options\n"
@@ -140,18 +138,32 @@ int main(int argc, char *argv[])
 	void *encoded_modinfo;
 	vita_elf_rela_table_t rtable = {};
 	vita_export_t *exports = NULL;
+	char *exports_path = NULL;
 	
 	int status = EXIT_SUCCESS;
 
-	elf_create_args args = {};
-	if (parse_arguments(argc, argv, &args) < 0) {
+	g_log = 0;
+	bool check_stub_count = true;
+
+	int c='?';
+	while ((c = getopt(argc, argv, "vne:")) != -1) {
+		switch (c) {
+		case 'v':g_log++;break;
+		case 'e':exports_path = optarg;break;
+		case 'n':check_stub_count = false;break;
+		default :c='?';break;/**< will be caught later */
+		}
+	}
+
+	if ((c == '?') || (argc < optind + 2)) {
 		usage(argc, argv);
 		return EXIT_FAILURE;
 	}
-
-	g_log = args.log_level;
-
-	if ((ve = vita_elf_load(args.input, args.check_stub_count)) == NULL)
+	
+	char*input = argv[optind];
+	char*output = argv[optind+1];
+	
+	if ((ve = vita_elf_load(input, check_stub_count)) == NULL)
 		return EXIT_FAILURE;
 
 	/* FIXME: save original segment sizes */
@@ -160,15 +172,12 @@ int main(int argc, char *argv[])
 	for(idx = 0; idx < ve->num_segments; idx++)
 		segment_sizes[idx] = ve->segments[idx].memsz;
 
-	if (args.exports) {
-		exports = vita_exports_load(args.exports, args.input, 0);
-		
-		if (!exports)
+	if (exports_path) {
+		if (!(exports = vita_exports_load(exports_path, input, 0)))
 			return EXIT_FAILURE;
-	}
-	else {
+	} else {
 		// generate a default export list
-		exports = vita_export_generate_default(args.input);
+		exports = vita_export_generate_default(input);
 	}
 
 	if (!vita_elf_lookup_imports(ve))
@@ -208,15 +217,15 @@ int main(int argc, char *argv[])
 	PRINTSEC(sceVNID_rodata);
 	PRINTSEC(sceVStub_rodata);
 
-	encoded_modinfo = sce_elf_module_info_encode(
-			module_info, ve, &section_sizes, &rtable);
+	encoded_modinfo = sce_elf_module_info_encode( module_info, ve, &section_sizes, &rtable);
 
 	TRACEF(VERBOSE, "Relocations from encoded modinfo:\n");
 	print_rtable(&rtable);
 
 	FILE *outfile;
-	Elf *dest;
-	ASSERT(dest = elf_utils_copy_to_file(args.output, ve->elf, &outfile));
+	Elf *dest = elf_utils_copy_to_file(output, ve->elf, &outfile);
+	ASSERT(dest != NULL, "Unable to copy to file");
+	
 	ASSERT(elf_utils_duplicate_shstrtab(dest));
 	ASSERT(sce_elf_discard_invalid_relocs(ve, ve->rela_tables));
 	ASSERT(sce_elf_write_module_info(dest, ve, &section_sizes, encoded_modinfo));
